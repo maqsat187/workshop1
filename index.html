@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<title>Workshop App</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 480px; margin: 40px auto; }
+  input { padding: 8px; margin-right: 8px; }
+  button { padding: 8px 12px; }
+  li { margin: 8px 0; }
+</style>
+</head>
+<body>
+  <h1>Workshop App</h1>
+  <p>Это заготовка. Claude заменит это на приложение под вашу идею —
+  здесь только базовый пример, чтобы показать, что подключение к базе
+  данных работает.</p>
+
+  <input id="name" placeholder="название" />
+  <input id="note" placeholder="заметка (необязательно)" />
+  <button onclick="addItem()">Добавить</button>
+
+  <ul id="list"></ul>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  // Filled in once for the whole workshop — same for every participant.
+  const SUPABASE_URL = "https://ospzdrbiwlwvmrfjokee.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_IiTOhk0_H-y5KzC3qhRiBg_UMgFRnz8";
+
+  // IMPORTANT: Claude — generate a short random ID (e.g. 6 characters,
+  // letters+numbers) ONCE and hardcode it here. This keeps this
+  // participant's data separate from everyone else sharing the same
+  // Supabase project. Do not leave this as "REPLACE_ME".
+  const PARTICIPANT_ID = "REPLACE_ME";
+
+  const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  async function loadItems() {
+    const { data, error } = await client
+      .from("workshop_data")
+      .select("*")
+      .eq("participant_id", PARTICIPANT_ID)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    const list = document.getElementById("list");
+    list.innerHTML = "";
+    for (const row of data) {
+      const li = document.createElement("li");
+      li.textContent = `${row.data.name}${row.data.note ? " — " + row.data.note : ""}`;
+      list.appendChild(li);
+    }
+  }
+
+  async function addItem() {
+    const name = document.getElementById("name").value;
+    const note = document.getElementById("note").value;
+    if (!name) return;
+
+    const { error } = await client.from("workshop_data").insert({
+      participant_id: PARTICIPANT_ID,
+      item_type: "item",
+      data: { name, note },
+    });
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    document.getElementById("name").value = "";
+    document.getElementById("note").value = "";
+    loadItems();
+  }
+
+  loadItems();
+</script>
+</body>
+</html>
