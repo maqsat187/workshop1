@@ -2,45 +2,140 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8" />
-<title>Workshop App</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Таирдың есептері</title>
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 480px; margin: 40px auto; }
-  input { padding: 8px; margin-right: 8px; }
-  button { padding: 8px 12px; }
-  li { margin: 8px 0; }
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 24px auto; padding: 0 16px; color: #222; }
+  h1 { font-size: 22px; }
+  .task { border: 1px solid #ddd; border-radius: 8px; padding: 14px; margin: 14px 0; }
+  .task p { margin: 0 0 10px; line-height: 1.5; }
+  .points { color: #888; font-size: 13px; }
+  input[type="text"] { padding: 8px; width: 100%; box-sizing: border-box; font-size: 15px; }
+  input[type="text"].correct { border: 2px solid #2e9e3f; background: #f1fbf2; }
+  input[type="text"].wrong { border: 2px solid #d9483d; background: #fdf1f0; }
+  .answer-key { font-size: 13px; color: #2e9e3f; margin-top: 6px; }
+  button { padding: 10px 16px; font-size: 15px; margin-top: 8px; cursor: pointer; }
+  #result { font-size: 18px; font-weight: bold; margin: 16px 0; }
+  #history { margin-top: 32px; }
+  #history table { border-collapse: collapse; width: 100%; }
+  #history td, #history th { border: 1px solid #ddd; padding: 6px 10px; text-align: left; font-size: 14px; }
+  #already-done { padding: 14px; background: #f1fbf2; border-radius: 8px; }
 </style>
 </head>
 <body>
-  <h1>Workshop App</h1>
-  <p>Это заготовка. Claude заменит это на приложение под вашу идею —
-  здесь только базовый пример, чтобы показать, что подключение к базе
-  данных работает.</p>
+  <h1>Таир, бүгінгі математикалық есептер (4 сынып)</h1>
 
-  <input id="name" placeholder="название" />
-  <input id="note" placeholder="заметка (необязательно)" />
-  <button onclick="addItem()">Добавить</button>
+  <div id="already-done" style="display:none;"></div>
 
-  <ul id="list"></ul>
+  <form id="quiz" style="display:none;"></form>
+
+  <div id="result"></div>
+
+  <div id="history">
+    <h2>Нәтижелер тарихы</h2>
+    <table id="history-table">
+      <thead><tr><th>Күні</th><th>Балл</th></tr></thead>
+      <tbody id="history-body"></tbody>
+    </table>
+  </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-  // Filled in once for the whole workshop — same for every participant.
   const SUPABASE_URL = "https://ospzdrbiwlwvmrfjokee.supabase.co";
   const SUPABASE_KEY = "sb_publishable_IiTOhk0_H-y5KzC3qhRiBg_UMgFRnz8";
-
-  // IMPORTANT: Claude — generate a short random ID (e.g. 6 characters,
-  // letters+numbers) ONCE and hardcode it here. This keeps this
-  // participant's data separate from everyone else sharing the same
-  // Supabase project. Do not leave this as "REPLACE_ME".
   const PARTICIPANT_ID = "k7m2xq";
 
   const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  async function loadItems() {
+  const TASKS = [
+    { id: 1, points: 1, answer: "18",
+      text: "Сыныпта әр партада екі оқушыдан отырады. Екі ұл отырған парталар саны екі қыз отырған парталар санынан екі есе артық. Ал екі қыз отырған парталар саны ұл мен қыз отырған парталар санынан екі есе артық. Сыныпта 10 қыз бар екені белгілі болса, онда сыныпта қанша ұл бар?" },
+    { id: 2, points: 1, answer: "4",
+      text: "Екітаңбалы жай сан екі әртүрлі цифрлардан тұрады. Екі цифрды ауыстырғанда, басқа жай сан пайда болады, мұндай сандар жұбын айналы сандар деп атайық. Осындай екітаңбалы айналы сандар нешеу? (жай сандар деп тек 1-ге және өзіне ғана бөлінетін сандарды айтады)" },
+    { id: 3, points: 1, answer: "1",
+      text: "Винни – Пух достарын балмен қонақ қылуды ұйғарды. Ол балы бар құмыраны өлшегенде 9 кг болды. Винни – Пух достары келем дегенше балдың жартысын өзі жеп қойды, қалғанының жартысын Пятачок жеді, ал одан қалғанының жартысын Кролик жеді. Осыдан кейін қалған балы бар құмыраны өлшегенде ол енді 2 кг болды. Құмыраның салмағы қанша?" },
+    { id: 4, points: 1, answer: "2",
+      text: "Кітаптың 80 парағының қалыңдығы 1 см. Егер осы кітаптың беттерін нөмірлеуге 852 цифр кетсе, бүкіл кітаптың қалыңдығы қанша?" },
+    { id: 5, points: 1, answer: "15",
+      text: "Цифрларының қосындысы 5-ке тең болатын неше үштаңбалы сан бар?" },
+    { id: 6, points: 1, answer: "14",
+      text: "«Достық» аралында тышқан-мысық ойынын жақсы көретін тышқандар мен мысықтар өмір сүреді. Бүгін 26 тышқан мен бірнеше мысық ойнады. Ойын кезінде әр тышқан 7 мысықтан ұстап алды, ал әр мысық 13 реттен ұсталды. Тышқан-мысық ойынын неше мысық ойнады?" },
+    { id: 7, points: 2, answer: "25",
+      text: "Биыл Айдар мен Әсеттің жастарының қосындысы 60 жасты құрайды. 2 жыл бұрын Әсет пен Мақсаттың да жастарының қосындысы 60 жасты құраған, ал 3 жылдан кейін Айдар мен Мақсаттыкі де 60 жас болады. Айдар биыл нешеде?" },
+    { id: 8, points: 2, answer: "1400",
+      text: "Жас жігіт жыл соңында мопед және 1600$ алу үшін курьер болып жұмысқа орналасты. Бірақ ол 8 айдан кейін жұмыстан шығып кетті, оған есептескенде мопед және 600$ берді. Мопед қанша тұрады?" },
+    { id: 9, points: 2, answer: "184",
+      text: "Қабырғасы 1 см болатын кубиктің барлық жағын бояп шығу үшін 6 грамм бояу қажет. Қыры 2 см болатын бірдей алты кубикті суреттегідей етіп жапсырды. Осы фигураны бояп шығу үшін қанша бояу қажет?" },
+    { id: 10, points: 3, answer: "27",
+      text: "Мына тұжырымдардың үшеуі ақиқат, ал біреуі жалған болатын сандар нешеу? X – екітаңбалы сан, Х – 5-ке бөлінеді, Х – 50-ден артық емес, Х – тақ сан." },
+  ];
+  const MAX_SCORE = TASKS.reduce((sum, t) => sum + t.points, 0);
+
+  function todayStr() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function renderQuiz() {
+    const form = document.getElementById("quiz");
+    form.innerHTML = "";
+    for (const task of TASKS) {
+      const div = document.createElement("div");
+      div.className = "task";
+      div.innerHTML = `
+        <p><b>${task.id}.</b> ${task.text} <span class="points">(${task.points} балл)</span></p>
+        <input type="text" id="answer-${task.id}" placeholder="Жауабы" />
+      `;
+      form.appendChild(div);
+    }
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = "Тексеру";
+    btn.onclick = submitQuiz;
+    form.appendChild(btn);
+    form.style.display = "block";
+  }
+
+  async function submitQuiz() {
+    let score = 0;
+    const answers = {};
+    for (const task of TASKS) {
+      const input = document.getElementById(`answer-${task.id}`);
+      const given = input.value.trim();
+      answers[task.id] = given;
+      const isCorrect = given.toLowerCase() === task.answer.toLowerCase();
+      input.classList.remove("correct", "wrong");
+      input.classList.add(isCorrect ? "correct" : "wrong");
+      input.disabled = true;
+      if (isCorrect) {
+        score += task.points;
+      } else {
+        const key = document.createElement("div");
+        key.className = "answer-key";
+        key.textContent = `Дұрыс жауап: ${task.answer}`;
+        input.insertAdjacentElement("afterend", key);
+      }
+    }
+
+    document.querySelector("#quiz button").disabled = true;
+    document.getElementById("result").textContent =
+      `Нәтиже: ${score} / ${MAX_SCORE} балл`;
+
+    const { error } = await client.from("workshop_data").insert({
+      participant_id: PARTICIPANT_ID,
+      item_type: "attempt",
+      data: { date: todayStr(), score, maxScore: MAX_SCORE, answers },
+    });
+    if (error) console.error(error);
+
+    loadHistory();
+  }
+
+  async function loadHistory() {
     const { data, error } = await client
       .from("workshop_data")
       .select("*")
       .eq("participant_id", PARTICIPANT_ID)
+      .eq("item_type", "attempt")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -48,37 +143,25 @@
       return;
     }
 
-    const list = document.getElementById("list");
-    list.innerHTML = "";
+    const body = document.getElementById("history-body");
+    body.innerHTML = "";
     for (const row of data) {
-      const li = document.createElement("li");
-      li.textContent = `${row.data.name}${row.data.note ? " — " + row.data.note : ""}`;
-      list.appendChild(li);
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${row.data.date}</td><td>${row.data.score} / ${row.data.maxScore}</td>`;
+      body.appendChild(tr);
+    }
+
+    const doneToday = data.find((row) => row.data.date === todayStr());
+    if (doneToday) {
+      document.getElementById("already-done").style.display = "block";
+      document.getElementById("already-done").textContent =
+        `Бүгін есептер шешілді. Нәтиже: ${doneToday.data.score} / ${doneToday.data.maxScore} балл. Ертең жаңа есептер!`;
+    } else {
+      renderQuiz();
     }
   }
 
-  async function addItem() {
-    const name = document.getElementById("name").value;
-    const note = document.getElementById("note").value;
-    if (!name) return;
-
-    const { error } = await client.from("workshop_data").insert({
-      participant_id: PARTICIPANT_ID,
-      item_type: "item",
-      data: { name, note },
-    });
-
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    document.getElementById("name").value = "";
-    document.getElementById("note").value = "";
-    loadItems();
-  }
-
-  loadItems();
+  loadHistory();
 </script>
 </body>
 </html>
