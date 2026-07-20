@@ -7,14 +7,18 @@
 <style>
   body { font-family: system-ui, sans-serif; max-width: 640px; margin: 24px auto; padding: 0 16px; color: #222; }
   h1 { font-size: 22px; }
-  .task { border: 1px solid #ddd; border-radius: 8px; padding: 14px; margin: 14px 0; }
+  .task { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin: 14px 0; }
   .task p { margin: 0 0 10px; line-height: 1.5; }
   .points { color: #888; font-size: 13px; }
+  .timer { font-size: 20px; font-weight: bold; margin-bottom: 12px; }
+  .timer.low { color: #d9483d; }
   input[type="text"] { padding: 8px; width: 100%; box-sizing: border-box; font-size: 15px; }
   input[type="text"].correct { border: 2px solid #2e9e3f; background: #f1fbf2; }
   input[type="text"].wrong { border: 2px solid #d9483d; background: #fdf1f0; }
-  .answer-key { font-size: 13px; color: #2e9e3f; margin-top: 6px; }
-  button { padding: 10px 16px; font-size: 15px; margin-top: 8px; cursor: pointer; }
+  button { padding: 10px 16px; font-size: 15px; margin-top: 10px; cursor: pointer; }
+  .feedback { margin-top: 12px; padding: 10px; border-radius: 6px; font-size: 15px; }
+  .feedback.correct { background: #f1fbf2; color: #206d2c; }
+  .feedback.wrong { background: #fdf1f0; color: #a3352b; }
   #result { font-size: 18px; font-weight: bold; margin: 16px 0; }
   #history { margin-top: 32px; }
   #history table { border-collapse: collapse; width: 100%; }
@@ -27,7 +31,7 @@
 
   <div id="already-done" style="display:none;"></div>
 
-  <form id="quiz" style="display:none;"></form>
+  <div id="quiz" style="display:none;"></div>
 
   <div id="result"></div>
 
@@ -70,53 +74,101 @@
       text: "Мына тұжырымдардың үшеуі ақиқат, ал біреуі жалған болатын сандар нешеу? X – екітаңбалы сан, Х – 5-ке бөлінеді, Х – 50-ден артық емес, Х – тақ сан." },
   ];
   const MAX_SCORE = TASKS.reduce((sum, t) => sum + t.points, 0);
+  const TIME_LIMIT = 10 * 60; // 10 минут əр сұраққа
+
+  let currentIndex = 0;
+  let score = 0;
+  const answers = {};
+  let secondsLeft = TIME_LIMIT;
+  let timerHandle = null;
 
   function todayStr() {
     return new Date().toISOString().slice(0, 10);
   }
 
-  function renderQuiz() {
-    const form = document.getElementById("quiz");
-    form.innerHTML = "";
-    for (const task of TASKS) {
-      const div = document.createElement("div");
-      div.className = "task";
-      div.innerHTML = `
-        <p><b>${task.id}.</b> ${task.text} <span class="points">(${task.points} балл)</span></p>
-        <input type="text" id="answer-${task.id}" placeholder="Жауабы" />
-      `;
-      form.appendChild(div);
-    }
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.textContent = "Тексеру";
-    btn.onclick = submitQuiz;
-    form.appendChild(btn);
-    form.style.display = "block";
+  function formatTime(s) {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${String(sec).padStart(2, "0")}`;
   }
 
-  async function submitQuiz() {
-    let score = 0;
-    const answers = {};
-    for (const task of TASKS) {
-      const input = document.getElementById(`answer-${task.id}`);
-      const given = input.value.trim();
-      answers[task.id] = given;
-      const isCorrect = given.toLowerCase() === task.answer.toLowerCase();
-      input.classList.remove("correct", "wrong");
-      input.classList.add(isCorrect ? "correct" : "wrong");
-      input.disabled = true;
-      if (isCorrect) {
-        score += task.points;
-      } else {
-        const key = document.createElement("div");
-        key.className = "answer-key";
-        key.textContent = `Дұрыс жауап: ${task.answer}`;
-        input.insertAdjacentElement("afterend", key);
+  function renderQuestion() {
+    const task = TASKS[currentIndex];
+    secondsLeft = TIME_LIMIT;
+
+    const quiz = document.getElementById("quiz");
+    quiz.style.display = "block";
+    quiz.innerHTML = `
+      <div class="task">
+        <div class="timer" id="timer">${formatTime(secondsLeft)}</div>
+        <p><b>${task.id}/${TASKS.length}.</b> ${task.text} <span class="points">(${task.points} балл)</span></p>
+        <input type="text" id="answer-input" placeholder="Жауабы" autofocus />
+        <div>
+          <button id="submit-btn">Жауап беру</button>
+        </div>
+        <div id="feedback"></div>
+      </div>
+    `;
+
+    document.getElementById("submit-btn").onclick = () => checkAnswer(false);
+    document.getElementById("answer-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") checkAnswer(false);
+    });
+
+    clearInterval(timerHandle);
+    timerHandle = setInterval(() => {
+      secondsLeft--;
+      const timerEl = document.getElementById("timer");
+      timerEl.textContent = formatTime(secondsLeft);
+      if (secondsLeft <= 60) timerEl.classList.add("low");
+      if (secondsLeft <= 0) {
+        clearInterval(timerHandle);
+        checkAnswer(true);
       }
+    }, 1000);
+  }
+
+  function checkAnswer(timedOut) {
+    clearInterval(timerHandle);
+    const task = TASKS[currentIndex];
+    const input = document.getElementById("answer-input");
+    const given = timedOut ? "" : input.value.trim();
+    answers[task.id] = given;
+
+    const isCorrect = !timedOut && given.toLowerCase() === task.answer.toLowerCase();
+    input.disabled = true;
+    document.getElementById("submit-btn").disabled = true;
+    input.classList.add(isCorrect ? "correct" : "wrong");
+
+    const feedback = document.getElementById("feedback");
+    feedback.className = "feedback " + (isCorrect ? "correct" : "wrong");
+    if (isCorrect) {
+      score += task.points;
+      feedback.textContent = `Дұрыс! Жауабы: ${task.answer}. Келесі есепке өтейік.`;
+    } else if (timedOut) {
+      feedback.textContent = `Уақыт бітті. Дұрыс жауап: ${task.answer}. Папамен бірге шешейік!`;
+    } else {
+      feedback.textContent = `Қате жауап. Дұрыс жауап: ${task.answer}. Папамен бірге шешейік!`;
     }
 
-    document.querySelector("#quiz button").disabled = true;
+    const nextBtn = document.createElement("button");
+    nextBtn.textContent = currentIndex + 1 < TASKS.length ? "Келесі сұрақ" : "Аяқтау";
+    nextBtn.onclick = nextQuestion;
+    feedback.appendChild(document.createElement("br"));
+    feedback.appendChild(nextBtn);
+  }
+
+  function nextQuestion() {
+    currentIndex++;
+    if (currentIndex < TASKS.length) {
+      renderQuestion();
+    } else {
+      finishQuiz();
+    }
+  }
+
+  async function finishQuiz() {
+    document.getElementById("quiz").style.display = "none";
     document.getElementById("result").textContent =
       `Нәтиже: ${score} / ${MAX_SCORE} балл`;
 
@@ -157,7 +209,7 @@
       document.getElementById("already-done").textContent =
         `Бүгін есептер шешілді. Нәтиже: ${doneToday.data.score} / ${doneToday.data.maxScore} балл. Ертең жаңа есептер!`;
     } else {
-      renderQuiz();
+      renderQuestion();
     }
   }
 
