@@ -79,6 +79,7 @@
   let currentIndex = 0;
   let score = 0;
   const answers = {};
+  const missed = [];
   let secondsLeft = TIME_LIMIT;
   let timerHandle = null;
 
@@ -145,10 +146,13 @@
     if (isCorrect) {
       score += task.points;
       feedback.textContent = `Дұрыс! Жауабы: ${task.answer}. Келесі есепке өтейік.`;
-    } else if (timedOut) {
-      feedback.textContent = `Уақыт бітті. Дұрыс жауап: ${task.answer}. Папамен бірге шешейік!`;
     } else {
-      feedback.textContent = `Қате жауап. Дұрыс жауап: ${task.answer}. Папамен бірге шешейік!`;
+      missed.push(task);
+      if (timedOut) {
+        feedback.textContent = `Уақыт бітті. Бұл есепті папамен бірге шешейік!`;
+      } else {
+        feedback.textContent = `Қате жауап. Бұл есепті папамен бірге шешейік!`;
+      }
     }
 
     const nextBtn = document.createElement("button");
@@ -169,8 +173,23 @@
 
   async function finishQuiz() {
     document.getElementById("quiz").style.display = "none";
-    document.getElementById("result").textContent =
-      `Нәтиже: ${score} / ${MAX_SCORE} балл`;
+    const result = document.getElementById("result");
+    result.textContent = `Нәтиже: ${score} / ${MAX_SCORE} балл`;
+
+    if (missed.length > 0) {
+      const review = document.createElement("div");
+      review.innerHTML = `<h2>Папамен бірге шешетін есептер</h2>`;
+      for (const task of missed) {
+        const div = document.createElement("div");
+        div.className = "task";
+        div.innerHTML = `
+          <p><b>${task.id}.</b> ${task.text} <span class="points">(${task.points} балл)</span></p>
+          <p><i>Дұрыс жауабы (папаға): ${task.answer}</i></p>
+        `;
+        review.appendChild(div);
+      }
+      result.insertAdjacentElement("afterend", review);
+    }
 
     const { error } = await client.from("workshop_data").insert({
       participant_id: PARTICIPANT_ID,
