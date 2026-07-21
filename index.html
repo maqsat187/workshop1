@@ -29,7 +29,7 @@
   .field { margin-bottom: 14px; }
   .field label { display: block; margin-bottom: 4px; font-size: 14px; color: #555; }
   #logout { font-size: 13px; color: #888; cursor: pointer; text-decoration: underline; }
-  #admin-error { color: #a3352b; font-size: 14px; }
+  #password-gate-error { color: #a3352b; font-size: 14px; }
   #admin { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin: 14px 0; background: #fafafa; }
 </style>
 </head>
@@ -39,11 +39,11 @@
   <div id="login">
     <p>Атыңды таңда:</p>
     <div id="login-buttons"></div>
-    <div id="admin-password" style="display:none;">
-      <p>Админ паролі:</p>
-      <input type="password" id="admin-password-input" placeholder="Пароль" />
-      <button id="admin-password-btn">Кіру</button>
-      <p id="admin-error"></p>
+    <div id="password-gate" style="display:none;">
+      <p>Құпия сөз (<span id="password-gate-name"></span>):</p>
+      <input type="password" id="password-gate-input" placeholder="Пароль" />
+      <button id="password-gate-btn">Кіру</button>
+      <p id="password-gate-error"></p>
     </div>
   </div>
 
@@ -88,6 +88,12 @@
   const STUDENTS = ["Таир", "Батыр", "Жансая", "Папа", "Мама"];
   const ADMIN_NAME = "Папа";
   const ADMIN_PASSWORD = "Femo";
+  const STUDENT_PASSWORDS = {
+    "Таир": "1111",
+    "Батыр": "2222",
+    "Жансая": "3333",
+    "Мама": "4444",
+  };
 
   const TOURS = {
     intl2020: {
@@ -602,43 +608,49 @@
     document.getElementById("admin").style.display = "none";
   }
 
+  let pendingLoginName = null;
+
   function showLogin() {
     hideAll();
     document.getElementById("login").style.display = "block";
-    document.getElementById("admin-password").style.display = "none";
-    document.getElementById("admin-error").textContent = "";
+    document.getElementById("password-gate").style.display = "none";
+    document.getElementById("password-gate-error").textContent = "";
+    document.getElementById("password-gate-input").value = "";
     const box = document.getElementById("login-buttons");
     box.innerHTML = "";
     for (const name of STUDENTS) {
       const btn = document.createElement("button");
       btn.textContent = name;
       btn.onclick = () => {
-        if (name === ADMIN_NAME) {
-          document.getElementById("admin-password").style.display = "block";
-          document.getElementById("admin-password-input").focus();
-        } else {
-          currentStudent = name;
-          localStorage.setItem("mathAppStudent", name);
-          showSelect();
-        }
+        pendingLoginName = name;
+        document.getElementById("password-gate-name").textContent = name;
+        document.getElementById("password-gate-error").textContent = "";
+        document.getElementById("password-gate-input").value = "";
+        document.getElementById("password-gate").style.display = "block";
+        document.getElementById("password-gate-input").focus();
       };
       box.appendChild(btn);
     }
   }
 
-  document.getElementById("admin-password-btn").onclick = () => {
-    const pw = document.getElementById("admin-password-input").value;
-    if (pw === ADMIN_PASSWORD) {
-      currentStudent = ADMIN_NAME;
-      isAdmin = true;
-      localStorage.setItem("mathAppStudent", ADMIN_NAME);
-      showAdmin();
+  document.getElementById("password-gate-btn").onclick = () => {
+    const pw = document.getElementById("password-gate-input").value;
+    const expected = pendingLoginName === ADMIN_NAME ? ADMIN_PASSWORD : STUDENT_PASSWORDS[pendingLoginName];
+    if (pw === expected) {
+      currentStudent = pendingLoginName;
+      localStorage.setItem("mathAppStudent", pendingLoginName);
+      if (pendingLoginName === ADMIN_NAME) {
+        isAdmin = true;
+        showAdmin();
+      } else {
+        showSelect();
+      }
     } else {
-      document.getElementById("admin-error").textContent = "Қате пароль.";
+      document.getElementById("password-gate-error").textContent = "Қате пароль.";
     }
   };
-  document.getElementById("admin-password-input").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") document.getElementById("admin-password-btn").click();
+  document.getElementById("password-gate-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") document.getElementById("password-gate-btn").click();
   });
 
   function showAdmin() {
