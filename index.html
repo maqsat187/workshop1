@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Математикалық жарыс</title>
+<title>ФЕМО есептері</title>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 640px; margin: 24px auto; padding: 0 16px; color: #222; }
   h1 { font-size: 22px; }
@@ -31,7 +31,7 @@
 </style>
 </head>
 <body>
-  <h1>Математикалық жарыс</h1>
+  <h1>ФЕМО есептері</h1>
 
   <div id="login">
     <p>Атыңды таңда:</p>
@@ -58,7 +58,7 @@
   <div id="history">
     <h2>Нәтижелер тарихы</h2>
     <table id="history-table">
-      <thead><tr><th>Оқушы</th><th>Тур</th><th>Сынып</th><th>Күні</th><th>Балл</th></tr></thead>
+      <thead><tr><th>Оқушы</th><th>Тур</th><th>Сынып</th><th>Күні</th><th>Балл</th><th></th></tr></thead>
       <tbody id="history-body"></tbody>
     </table>
   </div>
@@ -71,7 +71,7 @@
 
   const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  const STUDENTS = ["Таир", "Батыр", "Жансая"];
+  const STUDENTS = ["Таир", "Батыр", "Жансая", "Папа", "Мама"];
 
   const TOURS = {
     intl2020: {
@@ -285,6 +285,7 @@
   };
 
   const TIME_LIMIT = 10 * 60; // 10 минут әр сұраққа
+  const MAX_ATTEMPTS = 3;
 
   let currentStudent = localStorage.getItem("mathAppStudent") || null;
   let currentTourKey = null;
@@ -295,6 +296,7 @@
   let answers = {};
   let missed = [];
   let secondsLeft = TIME_LIMIT;
+  let attemptsLeft = MAX_ATTEMPTS;
   let timerHandle = null;
 
   function normalizeAnswer(str) {
@@ -391,6 +393,7 @@
   function renderQuestion() {
     const task = currentTasks[currentIndex];
     secondsLeft = TIME_LIMIT;
+    attemptsLeft = MAX_ATTEMPTS;
 
     const quiz = document.getElementById("quiz");
     quiz.style.display = "block";
@@ -398,6 +401,7 @@
       <div class="task">
         <div class="timer" id="timer">${formatTime(secondsLeft)}</div>
         <p><b>${task.id}/${currentTasks.length}.</b> ${task.text} <span class="points">(${task.points} балл)</span></p>
+        <p class="points" id="attempts-left">Талпыныс: ${attemptsLeft} / ${MAX_ATTEMPTS}</p>
         <input type="text" id="answer-input" placeholder="Жауабы" autofocus />
         <div>
           <button id="submit-btn">Жауап беру</button>
@@ -425,36 +429,52 @@
   }
 
   function checkAnswer(timedOut) {
-    clearInterval(timerHandle);
     const task = currentTasks[currentIndex];
     const input = document.getElementById("answer-input");
     const given = timedOut ? "" : input.value.trim();
-    answers[task.id] = given;
-
     const isCorrect = !timedOut && given.length > 0 && normalizeAnswer(given) === normalizeAnswer(task.answer);
-    input.disabled = true;
-    document.getElementById("submit-btn").disabled = true;
-    input.classList.add(isCorrect ? "correct" : "wrong");
 
-    const feedback = document.getElementById("feedback");
-    feedback.className = "feedback " + (isCorrect ? "correct" : "wrong");
-    if (isCorrect) {
-      score += task.points;
-      feedback.textContent = `Дұрыс! Жауабы: ${task.answer}. Келесі есепке өтейік.`;
-    } else {
-      missed.push(task);
-      if (timedOut) {
-        feedback.textContent = `Уақыт бітті. Бұл есепті папамен бірге шешейік!`;
-      } else {
-        feedback.textContent = `Қате жауап. Бұл есепті папамен бірге шешейік!`;
-      }
+    if (!isCorrect && !timedOut) {
+      attemptsLeft--;
     }
 
-    const nextBtn = document.createElement("button");
-    nextBtn.textContent = currentIndex + 1 < currentTasks.length ? "Келесі сұрақ" : "Аяқтау";
-    nextBtn.onclick = nextQuestion;
-    feedback.appendChild(document.createElement("br"));
-    feedback.appendChild(nextBtn);
+    const outOfTries = !isCorrect && attemptsLeft <= 0;
+
+    if (isCorrect || timedOut || outOfTries) {
+      clearInterval(timerHandle);
+      input.disabled = true;
+      document.getElementById("submit-btn").disabled = true;
+      input.classList.add(isCorrect ? "correct" : "wrong");
+
+      answers[task.id] = { given, correct: isCorrect, attempts: MAX_ATTEMPTS - attemptsLeft + (isCorrect ? 1 : 0) };
+
+      const feedback = document.getElementById("feedback");
+      feedback.className = "feedback " + (isCorrect ? "correct" : "wrong");
+      if (isCorrect) {
+        score += task.points;
+        feedback.textContent = `Дұрыс! Жауабы: ${task.answer}. Келесі есепке өтейік.`;
+      } else {
+        missed.push(task);
+        if (timedOut) {
+          feedback.textContent = `Уақыт бітті. Бұл есепті папамен бірге шешейік!`;
+        } else {
+          feedback.textContent = `Талпыныстар бітті. Бұл есепті папамен бірге шешейік!`;
+        }
+      }
+
+      const nextBtn = document.createElement("button");
+      nextBtn.textContent = currentIndex + 1 < currentTasks.length ? "Келесі сұрақ" : "Аяқтау";
+      nextBtn.onclick = nextQuestion;
+      feedback.appendChild(document.createElement("br"));
+      feedback.appendChild(nextBtn);
+    } else {
+      document.getElementById("attempts-left").textContent = `Талпыныс: ${attemptsLeft} / ${MAX_ATTEMPTS}`;
+      const feedback = document.getElementById("feedback");
+      feedback.className = "feedback wrong";
+      feedback.textContent = `Қате жауап. Тағы ${attemptsLeft} талпыныс бар — қайталап көр!`;
+      input.value = "";
+      input.focus();
+    }
   }
 
   function nextQuestion() {
@@ -529,7 +549,7 @@
 
     const body = document.getElementById("history-body");
     body.innerHTML = "";
-    for (const row of data) {
+    data.forEach((row, i) => {
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${row.data.student || ""}</td>
@@ -537,9 +557,35 @@
         <td>${row.data.grade || ""}</td>
         <td>${row.data.date}</td>
         <td>${row.data.score} / ${row.data.maxScore}</td>
+        <td><button type="button" data-idx="${i}">Толығырақ</button></td>
       `;
       body.appendChild(tr);
-    }
+
+      const detailTr = document.createElement("tr");
+      detailTr.style.display = "none";
+      const detailTd = document.createElement("td");
+      detailTd.colSpan = 6;
+
+      const answersObj = row.data.answers || {};
+      const items = Object.keys(answersObj)
+        .sort((a, b) => a - b)
+        .map((qId) => {
+          const entry = answersObj[qId];
+          const legacy = typeof entry === "string";
+          const given = legacy ? entry : entry && entry.given;
+          const correct = legacy ? undefined : entry && entry.correct;
+          const mark = correct === true ? "✓ дұрыс" : correct === false ? "✗ қате" : "— ескі жазба";
+          const givenText = given ? ` (жауабы: ${given})` : " (жауап берілмеді)";
+          return `${qId}-сұрақ: ${mark}${givenText}`;
+        });
+      detailTd.innerHTML = items.map((t) => `<div>${t}</div>`).join("");
+      detailTr.appendChild(detailTd);
+      body.appendChild(detailTr);
+
+      tr.querySelector("button").onclick = () => {
+        detailTr.style.display = detailTr.style.display === "none" ? "table-row" : "none";
+      };
+    });
   }
 
   if (currentStudent && STUDENTS.includes(currentStudent)) {
