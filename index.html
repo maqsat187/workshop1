@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Таирдың есептері</title>
+<title>Математикалық жарыс</title>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 640px; margin: 24px auto; padding: 0 16px; color: #222; }
   h1 { font-size: 22px; }
+  h2 { font-size: 18px; }
   .task { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin: 14px 0; }
   .task p { margin: 0 0 10px; line-height: 1.5; }
   .points { color: #888; font-size: 13px; }
@@ -15,7 +16,8 @@
   input[type="text"] { padding: 8px; width: 100%; box-sizing: border-box; font-size: 15px; }
   input[type="text"].correct { border: 2px solid #2e9e3f; background: #f1fbf2; }
   input[type="text"].wrong { border: 2px solid #d9483d; background: #fdf1f0; }
-  button { padding: 10px 16px; font-size: 15px; margin-top: 10px; cursor: pointer; }
+  button { padding: 10px 16px; font-size: 15px; margin-top: 10px; margin-right: 8px; cursor: pointer; }
+  select { padding: 8px; font-size: 15px; margin-right: 8px; }
   .feedback { margin-top: 12px; padding: 10px; border-radius: 6px; font-size: 15px; }
   .feedback.correct { background: #f1fbf2; color: #206d2c; }
   .feedback.wrong { background: #fdf1f0; color: #a3352b; }
@@ -23,13 +25,31 @@
   #history { margin-top: 32px; }
   #history table { border-collapse: collapse; width: 100%; }
   #history td, #history th { border: 1px solid #ddd; padding: 6px 10px; text-align: left; font-size: 14px; }
-  #already-done { padding: 14px; background: #f1fbf2; border-radius: 8px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; margin-bottom: 4px; font-size: 14px; color: #555; }
+  #logout { font-size: 13px; color: #888; cursor: pointer; text-decoration: underline; }
 </style>
 </head>
 <body>
-  <h1>Таир, бүгінгі математикалық есептер (4 сынып)</h1>
+  <h1>Математикалық жарыс</h1>
 
-  <div id="already-done" style="display:none;"></div>
+  <div id="login">
+    <p>Атыңды таңда:</p>
+    <div id="login-buttons"></div>
+  </div>
+
+  <div id="select" style="display:none;">
+    <p>Сәлем, <b id="greeting"></b>! <span id="logout">(шығу)</span></p>
+    <div class="field">
+      <label>Сынып</label>
+      <select id="grade-select"></select>
+    </div>
+    <div class="field">
+      <label>Тур</label>
+      <select id="tour-select"></select>
+    </div>
+    <button id="start-btn">Бастау</button>
+  </div>
 
   <div id="quiz" style="display:none;"></div>
 
@@ -38,7 +58,7 @@
   <div id="history">
     <h2>Нәтижелер тарихы</h2>
     <table id="history-table">
-      <thead><tr><th>Күні</th><th>Балл</th></tr></thead>
+      <thead><tr><th>Оқушы</th><th>Тур</th><th>Сынып</th><th>Күні</th><th>Балл</th></tr></thead>
       <tbody id="history-body"></tbody>
     </table>
   </div>
@@ -51,37 +71,130 @@
 
   const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  const TASKS = [
-    { id: 1, points: 1, answer: "18",
-      text: "Сыныпта әр партада екі оқушыдан отырады. Екі ұл отырған парталар саны екі қыз отырған парталар санынан екі есе артық. Ал екі қыз отырған парталар саны ұл мен қыз отырған парталар санынан екі есе артық. Сыныпта 10 қыз бар екені белгілі болса, онда сыныпта қанша ұл бар?" },
-    { id: 2, points: 1, answer: "4",
-      text: "Екітаңбалы жай сан екі әртүрлі цифрлардан тұрады. Екі цифрды ауыстырғанда, басқа жай сан пайда болады, мұндай сандар жұбын айналы сандар деп атайық. Осындай екітаңбалы айналы сандар нешеу? (жай сандар деп тек 1-ге және өзіне ғана бөлінетін сандарды айтады)" },
-    { id: 3, points: 1, answer: "1",
-      text: "Винни – Пух достарын балмен қонақ қылуды ұйғарды. Ол балы бар құмыраны өлшегенде 9 кг болды. Винни – Пух достары келем дегенше балдың жартысын өзі жеп қойды, қалғанының жартысын Пятачок жеді, ал одан қалғанының жартысын Кролик жеді. Осыдан кейін қалған балы бар құмыраны өлшегенде ол енді 2 кг болды. Құмыраның салмағы қанша?" },
-    { id: 4, points: 1, answer: "2",
-      text: "Кітаптың 80 парағының қалыңдығы 1 см. Егер осы кітаптың беттерін нөмірлеуге 852 цифр кетсе, бүкіл кітаптың қалыңдығы қанша?" },
-    { id: 5, points: 1, answer: "15",
-      text: "Цифрларының қосындысы 5-ке тең болатын неше үштаңбалы сан бар?" },
-    { id: 6, points: 1, answer: "14",
-      text: "«Достық» аралында тышқан-мысық ойынын жақсы көретін тышқандар мен мысықтар өмір сүреді. Бүгін 26 тышқан мен бірнеше мысық ойнады. Ойын кезінде әр тышқан 7 мысықтан ұстап алды, ал әр мысық 13 реттен ұсталды. Тышқан-мысық ойынын неше мысық ойнады?" },
-    { id: 7, points: 2, answer: "25",
-      text: "Биыл Айдар мен Әсеттің жастарының қосындысы 60 жасты құрайды. 2 жыл бұрын Әсет пен Мақсаттың да жастарының қосындысы 60 жасты құраған, ал 3 жылдан кейін Айдар мен Мақсаттыкі де 60 жас болады. Айдар биыл нешеде?" },
-    { id: 8, points: 2, answer: "1400",
-      text: "Жас жігіт жыл соңында мопед және 1600$ алу үшін курьер болып жұмысқа орналасты. Бірақ ол 8 айдан кейін жұмыстан шығып кетті, оған есептескенде мопед және 600$ берді. Мопед қанша тұрады?" },
-    { id: 9, points: 2, answer: "184",
-      text: "Қабырғасы 1 см болатын кубиктің барлық жағын бояп шығу үшін 6 грамм бояу қажет. Қыры 2 см болатын бірдей алты кубикті суреттегідей етіп жапсырды. Осы фигураны бояп шығу үшін қанша бояу қажет?" },
-    { id: 10, points: 3, answer: "27",
-      text: "Мына тұжырымдардың үшеуі ақиқат, ал біреуі жалған болатын сандар нешеу? X – екітаңбалы сан, Х – 5-ке бөлінеді, Х – 50-ден артық емес, Х – тақ сан." },
-  ];
-  const MAX_SCORE = TASKS.reduce((sum, t) => sum + t.points, 0);
-  const TIME_LIMIT = 10 * 60; // 10 минут əр сұраққа
+  const STUDENTS = ["Таир", "Батыр", "Жансая"];
 
+  const TOURS = {
+    intl2020: {
+      label: "Халықаралық тур 2020",
+      grades: {
+        2: [
+          { id: 1, points: 1, answer: "5",
+            text: "Лентаның бөлігін қақ ортасынан бір бүктейміз, сосын тағы да қақ ортасынан бір бүктейміз, содан кейін ортасынан кесеміз. Лентадан қанша бөлік пайда болды?" },
+          { id: 2, points: 1, answer: "10",
+            text: "Цифрларының қосындысы 4-ке тең болатын неше үштаңбалы сан бар?" },
+          { id: 3, points: 1, answer: "9",
+            text: "Ертегі орманындағы құбыжық итке ұқсайды, оның да 4 табаны бар, бірақ әр табанындағы тырнақтар саны әртүрлі болуы мүмкін. Құбыжықтың сол табандарын қосқанда 10 тырнақ, оң табандарында 12 тырнақ, артқы табандарында 13 тырнақ бар. Құбыжықтың алдыңғы табандарын қосқанда неше тырнақ бар?" },
+          { id: 4, points: 2, answer: "26",
+            text: "Төрт ойын кубигін суреттегідей етіп қойды. Кубиктердің көрініп тұрған жоғарғы жағы мен бүйір жақтарындағы нүктелердің қосындысы 58 болды. Кубиктердің көрінбейтін төменгі және бүйір жақтарындағы нүктелердің қосындысы қаншаға тең? (Ойын кубигі – жақтарында 1-ден 6-ға дейінгі нүктелер салынған кубик)" },
+          { id: 5, points: 1, answer: "20",
+            text: "Амирдегі жаңғақтар саны 30-дан аз. Осы жаңғақтарды ол екеуден, төртеуден және бесеуден үйіп қоя алады. Амирда қанша жаңғақ бар?" },
+          { id: 6, points: 1, answer: "Таня-15,Аня-13,Настя-14",
+            text: "«Жасың қаншада?» деген сұраққа Настя, Аня және Таня үш құрбы былай жауап берді: Настя: «Аня екеуміз 27 жастамыз», Аня: «Мен Танядан 2 жасқа кішімін», Таня: «Үшеуіміз 42 жастамыз». Қыздардың әрқайсысы нешеде?" },
+          { id: 7, points: 3, answer: "34",
+            text: "Әжей бір себет саңырауқұлақ жинады: 15 жеуге жарамды, 17 сары және 28 ақ саңырауқұлақ. Бірақ жеуге жарамдылар мен сарылардың ішінде 16-сы құрттаған, сары мен ақтардың 19-ы құрттаған, ал жеуге жарамдылар мен ақтардың 17-сі құрттаған болып шықты. Әжей қанша құрттамаған саңырауқұлақ жинады?" },
+          { id: 8, points: 2, answer: "10:8",
+            text: "Қанат пен Марат «теңіз шайқасы» ойынын ойнады. Олар 3 матчтан тұратын турнир ұйымдастырды. Әр матч 5 раундтан тұрады және ойын шарты мынадай: әрбір ұтқан раундқа 1 балл, әрбір ұтқан матчқа қосымша 1 балл беріледі. Кімнің балы көп болса, турнирде сол жеңіске жетеді. Қанат алғашқы 2 матчта ұтылып қалды, бірақ турнирде жеңді. Турнир қандай есеп айырысумен аяқталды?" },
+          { id: 9, points: 2, answer: "6",
+            text: "«Достық» аралында тышқан-мысық ойынын жақсы көретін тышқандар мен мысықтар өмір сүреді. Бүгін 10 тышқан мен бірнеше мысық ойнады. Ойын кезінде әр тышқан 3 мысықтан ұстап алды, ал әр мысық 5 реттен ұсталды. Тышқан-мысық ойынын неше мысық ойнады?" },
+          { id: 10, points: 1, answer: "30",
+            text: "Суреттегі фигураны құрастыруға қанша кубик қажет болды? (текшелерден жасалған пирамида суреті)" },
+        ],
+        3: [
+          { id: 1, points: 1, answer: "8",
+            text: "Ленада 12 лента бар, ол кейбір ленталарды 3 бөлікке бөлді, сонда 28 лента болды. Лена қанша лентаны үш бөлікке бөлді?" },
+          { id: 2, points: 2, answer: "1000",
+            text: "Балабақшаға бір-біреуден ойыншық тиін, қоян, аю және піл сатып алды. Егер тиін, 2 қоян, 3 аю және піл бәрі бірге 1350 теңге тұрса, ал 3 тиін, 2 қоян, аю және 3 піл 2650 теңге тұрса, онда ойыншықтарға қанша теңге төледі?" },
+          { id: 3, points: 1, answer: "4,9",
+            text: "Тіктөртбұрыштың ауданы 36 кв.см, ал периметрі 26 см болса, оның қабырғалары қаншаға тең?" },
+          { id: 4, points: 3, answer: "1",
+            text: "Винни – Пух достарын балмен қонақ қылуды ұйғарды. Ол балы бар құмыраны өлшегенде 9 кг болды. Винни – Пух достары келем дегенше балдың жартысын өзі жеп қойды, қалғанының жартысын Пятачок жеді, ал одан қалғанының жартысын Кролик жеді. Осыдан кейін қалған балы бар құмыраны өлшегенде ол енді 2 кг болды. Құмыраның салмағы қанша?" },
+          { id: 5, points: 1, answer: "34",
+            text: "4×4×4 үлкен куб алу үшін кішкентай кубиктердің нешеуі жетпей тұр?" },
+          { id: 6, points: 2, answer: "19 января",
+            text: "Қонжық 20 қарашада ұйқыға кетті. Бірақ апанынан шыққанша, әрбір бесінші күні оны Маша оятып тұрды. 12-рет оятқанда қонжық апанынан шықты. Бұл қай күні болды?" },
+          { id: 7, points: 1, answer: "8",
+            text: "«Достық» аралында тышқан-мысық ойынын жақсы көретін тышқандар мен мысықтар өмір сүреді. Бүгін 14 тышқан мен бірнеше мысық ойнады. Ойын кезінде әр тышқан 4 мысықтан ұстап алды, ал әр мысық 7 реттен ұсталды. Тышқан-мысық ойынын неше мысық ойнады?" },
+          { id: 8, points: 2, answer: "54",
+            text: "Бір мектептің үшінші класс оқитын барлық оқушылары жаңа жылда бір-бірін ашық хатпен құттықтамақшы болды. Олар өз сыйлықтарын 20-дан 95-ке дейін нөмірледі. Әркім бір ашық хаттан алды. Ұлдарға 4, 6, 8 –ден аяқталатын ашық хаттар тиіпті. Қалған ашық хаттардың бәрі қыздарға тиді. Осы параллельде қанша қыз бар?" },
+          { id: 9, points: 1, answer: "7",
+            text: "Марк, Карл, Тимур және Захар қайықта серуендеді. Қайыққа үш адам ғана отыруға болады, сондықтан әр жолы біреу жағада қалып отырды. Нәтижесінде бәрінен көп – 8 рет серуендеген Карл, ал ең аз – 5 рет серуендеген Захар болды. Марк қайықпен қанша рет серуендеді?" },
+          { id: 10, points: 1, answer: "Федя-15,Артем-16,Максим-14,Марк-16",
+            text: "«Жасың қаншада?» деген сұраққа Марк, Максим, Артем және Федя үш дос былай жауап берді: Марк: «Федяны қоспағанда үшеуіміз 46 жастамыз», Максим: «Мен Марктен 2 жасқа кішімін», Артем: «Мен Федядан 1 жасқа үлкенмін», Федя: «Төртеуіміз 61 жастамыз». Достардың әрқайсысы нешеде?" },
+        ],
+        4: [
+          { id: 1, points: 1, answer: "18",
+            text: "Сыныпта әр партада екі оқушыдан отырады. Екі ұл отырған парталар саны екі қыз отырған парталар санынан екі есе артық. Ал екі қыз отырған парталар саны ұл мен қыз отырған парталар санынан екі есе артық. Сыныпта 10 қыз бар екені белгілі болса, онда сыныпта қанша ұл бар?" },
+          { id: 2, points: 1, answer: "4",
+            text: "Екітаңбалы жай сан екі әртүрлі цифрлардан тұрады. Екі цифрды ауыстырғанда, басқа жай сан пайда болады, мұндай сандар жұбын айналы сандар деп атайық. Осындай екітаңбалы айналы сандар нешеу? (жай сандар деп тек 1-ге және өзіне ғана бөлінетін сандарды айтады)" },
+          { id: 3, points: 1, answer: "1",
+            text: "Винни – Пух достарын балмен қонақ қылуды ұйғарды. Ол балы бар құмыраны өлшегенде 9 кг болды. Винни – Пух достары келем дегенше балдың жартысын өзі жеп қойды, қалғанының жартысын Пятачок жеді, ал одан қалғанының жартысын Кролик жеді. Осыдан кейін қалған балы бар құмыраны өлшегенде ол енді 2 кг болды. Құмыраның салмағы қанша?" },
+          { id: 4, points: 1, answer: "2",
+            text: "Кітаптың 80 парағының қалыңдығы 1 см. Егер осы кітаптың беттерін нөмірлеуге 852 цифр кетсе, бүкіл кітаптың қалыңдығы қанша?" },
+          { id: 5, points: 1, answer: "15",
+            text: "Цифрларының қосындысы 5-ке тең болатын неше үштаңбалы сан бар?" },
+          { id: 6, points: 1, answer: "14",
+            text: "«Достық» аралында тышқан-мысық ойынын жақсы көретін тышқандар мен мысықтар өмір сүреді. Бүгін 26 тышқан мен бірнеше мысық ойнады. Ойын кезінде әр тышқан 7 мысықтан ұстап алды, ал әр мысық 13 реттен ұсталды. Тышқан-мысық ойынын неше мысық ойнады?" },
+          { id: 7, points: 2, answer: "25",
+            text: "Биыл Айдар мен Әсеттің жастарының қосындысы 60 жасты құрайды. 2 жыл бұрын Әсет пен Мақсаттың да жастарының қосындысы 60 жасты құраған, ал 3 жылдан кейін Айдар мен Мақсаттыкі де 60 жас болады. Айдар биыл нешеде?" },
+          { id: 8, points: 2, answer: "1400",
+            text: "Жас жігіт жыл соңында мопед және 1600$ алу үшін курьер болып жұмысқа орналасты. Бірақ ол 8 айдан кейін жұмыстан шығып кетті, оған есептескенде мопед және 600$ берді. Мопед қанша тұрады?" },
+          { id: 9, points: 2, answer: "184",
+            text: "Қабырғасы 1 см болатын кубиктің барлық жағын бояп шығу үшін 6 грамм бояу қажет. Қыры 2 см болатын бірдей алты кубикті суреттегідей етіп жапсырды. Осы фигураны бояп шығу үшін қанша бояу қажет?" },
+          { id: 10, points: 3, answer: "27",
+            text: "Мына тұжырымдардың үшеуі ақиқат, ал біреуі жалған болатын сандар нешеу? X – екітаңбалы сан, Х – 5-ке бөлінеді, Х – 50-ден артық емес, Х – тақ сан." },
+        ],
+        5: [
+          { id: 1, points: 1, answer: "1124",
+            text: "8-ге бөлгенде қалдығы 3 болатын төрттаңбалы сандар нешеу?" },
+          { id: 2, points: 1, answer: "1",
+            text: "Винни – Пух достарын балмен қонақ қылуды ұйғарды. Ол балы бар құмыраны өлшегенде 9 кг болды. Винни – Пух достары келем дегенше балдың жартысын өзі жеп қойды, қалғанының жартысын Пятачок жеді, ал одан қалғанының жартысын Кролик жеді. Осыдан кейін қалған балы бар құмыраны өлшегенде ол енді 2 кг болды. Құмыраның салмағы қанша?" },
+          { id: 3, points: 1, answer: "13",
+            text: "n! саны 12-ге де, 13-ке де, 14-ке де, 15-ке де бөлінетіндей ең кіші n натурал санын табыңдар (n! = 1·2·3·...·n)." },
+          { id: 4, points: 1, answer: "1400",
+            text: "Қырлары 14 см, 16 см және 19 см болатын параллелепипед қыры 1 см болатын кубиктерден құралған. Даулет пен Алия параллелепипедтің сыртқы қабатындағы кубиктерден мұнара құрастыруды ұйғарды. Мұнараның биіктігі қанша болды?" },
+          { id: 5, points: 1, answer: "69",
+            text: "Қандай да бір екітаңбалы сан үшке еселі. Егер цифрлардың арасына 0-ді қойып және алынған үштаңбалы санға оның жүздігінің цифрын екі еселеп қосса, онда бастапқы екітаңбалы саннан 9 есе үлкен сан шығады. Бастапқы екітаңбалы сан нешеге тең?" },
+          { id: 6, points: 1, answer: "14",
+            text: "«Достық» аралында тышқан-мысық ойынын жақсы көретін тышқандар мен мысықтар өмір сүреді. Бүгін 26 тышқан мен бірнеше мысық ойнады. Ойын кезінде әр тышқан 7 мысықтан ұстап алды, ал әр мысық 13 реттен ұсталды. Тышқан-мысық ойынын неше мысық ойнады?" },
+          { id: 7, points: 1, answer: "49,15,35,45",
+            text: "Мына тұжырымдардың төртеуі ақиқат, ал біреуі жалған. Осындай шарт орындалатын барлық Х сандарын жазыңдар. X – екітаңбалы сан, Х – 5-ке бөлінеді, Х – 50-ден артық емес, Х – бүтін санның квадраты, Х – тақ сан." },
+          { id: 8, points: 1, answer: "25",
+            text: "Биыл Айдар мен Әсеттің жастарының қосындысы 60 жасты құрайды. 2 жыл бұрын Әсет пен Мақсаттың да жастарының қосындысы 60 жасты құраған, ал 3 жылдан кейін Айдар мен Мақсаттыкі де 60 жас болады. Айдар биыл нешеде?" },
+          { id: 9, points: 1, answer: "333",
+            text: "Арнур 1000-нан 9999-ға дейінгі барлық төрттаңбалы сандарды жазып шықты да, сосын олардың ішіндегі ең болмағанда бірдей үш цифры бар сандарды сызып тастады. Ол қанша санды сызды?" },
+          { id: 10, points: 1, answer: "2/3",
+            text: "Барлық жолдың жартысын жүргеннен кейін Даулет ұйықтауға жатты, сөйтіп, ұйықтаған кезде жүрілген жолдың жартысы қалғанда ол оянды. Барлық жолдың қанша бөлігінде Даулет ояу отырды?" },
+        ],
+      },
+    },
+  };
+
+  const TIME_LIMIT = 10 * 60; // 10 минут әр сұраққа
+
+  let currentStudent = localStorage.getItem("mathAppStudent") || null;
+  let currentTourKey = null;
+  let currentGrade = null;
+  let currentTasks = null;
   let currentIndex = 0;
   let score = 0;
-  const answers = {};
-  const missed = [];
+  let answers = {};
+  let missed = [];
   let secondsLeft = TIME_LIMIT;
   let timerHandle = null;
+
+  function normalizeAnswer(str) {
+    return str
+      .toLowerCase()
+      .replace(/ё/g, "е")
+      .replace(/[–—]/g, "-")
+      .replace(/\bи\b/g, ",")
+      .replace(/\s*-\s*/g, "-")
+      .split(/[,;]+/)
+      .map((p) => p.trim().replace(/\s+/g, " "))
+      .filter((p) => p.length > 0)
+      .sort()
+      .join(",");
+  }
 
   function todayStr() {
     return new Date().toISOString().slice(0, 10);
@@ -93,8 +206,68 @@
     return `${m}:${String(sec).padStart(2, "0")}`;
   }
 
+  function showLogin() {
+    document.getElementById("login").style.display = "block";
+    document.getElementById("select").style.display = "none";
+    const box = document.getElementById("login-buttons");
+    box.innerHTML = "";
+    for (const name of STUDENTS) {
+      const btn = document.createElement("button");
+      btn.textContent = name;
+      btn.onclick = () => {
+        currentStudent = name;
+        localStorage.setItem("mathAppStudent", name);
+        showSelect();
+      };
+      box.appendChild(btn);
+    }
+  }
+
+  function showSelect() {
+    document.getElementById("login").style.display = "none";
+    document.getElementById("select").style.display = "block";
+    document.getElementById("greeting").textContent = currentStudent;
+
+    const gradeSelect = document.getElementById("grade-select");
+    gradeSelect.innerHTML = "";
+    for (const g of [2, 3, 4, 5]) {
+      const opt = document.createElement("option");
+      opt.value = g;
+      opt.textContent = `${g} сынып`;
+      gradeSelect.appendChild(opt);
+    }
+
+    const tourSelect = document.getElementById("tour-select");
+    tourSelect.innerHTML = "";
+    for (const key in TOURS) {
+      const opt = document.createElement("option");
+      opt.value = key;
+      opt.textContent = TOURS[key].label;
+      tourSelect.appendChild(opt);
+    }
+  }
+
+  document.getElementById("logout").onclick = () => {
+    currentStudent = null;
+    localStorage.removeItem("mathAppStudent");
+    showLogin();
+  };
+
+  document.getElementById("start-btn").onclick = () => {
+    currentGrade = document.getElementById("grade-select").value;
+    currentTourKey = document.getElementById("tour-select").value;
+    currentTasks = TOURS[currentTourKey].grades[currentGrade];
+    currentIndex = 0;
+    score = 0;
+    answers = {};
+    missed = [];
+    document.getElementById("select").style.display = "none";
+    document.getElementById("result").innerHTML = "";
+    renderQuestion();
+  };
+
   function renderQuestion() {
-    const task = TASKS[currentIndex];
+    const task = currentTasks[currentIndex];
     secondsLeft = TIME_LIMIT;
 
     const quiz = document.getElementById("quiz");
@@ -102,7 +275,7 @@
     quiz.innerHTML = `
       <div class="task">
         <div class="timer" id="timer">${formatTime(secondsLeft)}</div>
-        <p><b>${task.id}/${TASKS.length}.</b> ${task.text} <span class="points">(${task.points} балл)</span></p>
+        <p><b>${task.id}/${currentTasks.length}.</b> ${task.text} <span class="points">(${task.points} балл)</span></p>
         <input type="text" id="answer-input" placeholder="Жауабы" autofocus />
         <div>
           <button id="submit-btn">Жауап беру</button>
@@ -131,12 +304,12 @@
 
   function checkAnswer(timedOut) {
     clearInterval(timerHandle);
-    const task = TASKS[currentIndex];
+    const task = currentTasks[currentIndex];
     const input = document.getElementById("answer-input");
     const given = timedOut ? "" : input.value.trim();
     answers[task.id] = given;
 
-    const isCorrect = !timedOut && given.toLowerCase() === task.answer.toLowerCase();
+    const isCorrect = !timedOut && given.length > 0 && normalizeAnswer(given) === normalizeAnswer(task.answer);
     input.disabled = true;
     document.getElementById("submit-btn").disabled = true;
     input.classList.add(isCorrect ? "correct" : "wrong");
@@ -156,7 +329,7 @@
     }
 
     const nextBtn = document.createElement("button");
-    nextBtn.textContent = currentIndex + 1 < TASKS.length ? "Келесі сұрақ" : "Аяқтау";
+    nextBtn.textContent = currentIndex + 1 < currentTasks.length ? "Келесі сұрақ" : "Аяқтау";
     nextBtn.onclick = nextQuestion;
     feedback.appendChild(document.createElement("br"));
     feedback.appendChild(nextBtn);
@@ -164,7 +337,7 @@
 
   function nextQuestion() {
     currentIndex++;
-    if (currentIndex < TASKS.length) {
+    if (currentIndex < currentTasks.length) {
       renderQuestion();
     } else {
       finishQuiz();
@@ -173,8 +346,9 @@
 
   async function finishQuiz() {
     document.getElementById("quiz").style.display = "none";
+    const maxScore = currentTasks.reduce((sum, t) => sum + t.points, 0);
     const result = document.getElementById("result");
-    result.textContent = `Нәтиже: ${score} / ${MAX_SCORE} балл`;
+    result.innerHTML = `<div id="final-score">Нәтиже: ${score} / ${maxScore} балл</div>`;
 
     if (missed.length > 0) {
       const review = document.createElement("div");
@@ -188,13 +362,30 @@
         `;
         review.appendChild(div);
       }
-      result.insertAdjacentElement("afterend", review);
+      result.appendChild(review);
     }
+
+    const again = document.createElement("button");
+    again.textContent = "Тағы бір тест шешу";
+    again.onclick = () => {
+      result.innerHTML = "";
+      showSelect();
+    };
+    result.appendChild(again);
 
     const { error } = await client.from("workshop_data").insert({
       participant_id: PARTICIPANT_ID,
       item_type: "attempt",
-      data: { date: todayStr(), score, maxScore: MAX_SCORE, answers },
+      data: {
+        student: currentStudent,
+        tour: currentTourKey,
+        tourLabel: TOURS[currentTourKey].label,
+        grade: currentGrade,
+        date: todayStr(),
+        score,
+        maxScore,
+        answers,
+      },
     });
     if (error) console.error(error);
 
@@ -218,20 +409,22 @@
     body.innerHTML = "";
     for (const row of data) {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${row.data.date}</td><td>${row.data.score} / ${row.data.maxScore}</td>`;
+      tr.innerHTML = `
+        <td>${row.data.student || ""}</td>
+        <td>${row.data.tourLabel || ""}</td>
+        <td>${row.data.grade || ""}</td>
+        <td>${row.data.date}</td>
+        <td>${row.data.score} / ${row.data.maxScore}</td>
+      `;
       body.appendChild(tr);
-    }
-
-    const doneToday = data.find((row) => row.data.date === todayStr());
-    if (doneToday) {
-      document.getElementById("already-done").style.display = "block";
-      document.getElementById("already-done").textContent =
-        `Бүгін есептер шешілді. Нәтиже: ${doneToday.data.score} / ${doneToday.data.maxScore} балл. Ертең жаңа есептер!`;
-    } else {
-      renderQuestion();
     }
   }
 
+  if (currentStudent && STUDENTS.includes(currentStudent)) {
+    showSelect();
+  } else {
+    showLogin();
+  }
   loadHistory();
 </script>
 </body>
