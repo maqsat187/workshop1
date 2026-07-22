@@ -6,6 +6,9 @@
 <title>ФЕМО есептері</title>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 640px; margin: 24px auto; padding: 0 16px; color: #222; }
+  .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 4px; }
+  .brand-logo { height: 44px; width: auto; flex-shrink: 0; }
+  .brand h1 { margin: 0; }
   h1 { font-size: 22px; }
   h2 { font-size: 18px; }
   .task { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin: 14px 0; }
@@ -34,7 +37,20 @@
 </style>
 </head>
 <body>
-  <h1>ФЕМО есептері</h1>
+  <div class="brand">
+    <svg class="brand-logo" viewBox="0 0 210 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ФЕМО логотипі">
+      <polygon points="0,0 0,48 48,48" fill="#E31E3A" />
+      <polygon points="54,0 102,0 78,24" fill="#2EBD59" />
+      <polygon points="54,48 102,48 78,24" fill="#F7931E" />
+      <polygon points="108,0 108,48 132,24" fill="#3FA9F5" />
+      <polygon points="156,0 156,48 132,24" fill="#1B7340" />
+      <path d="M186,24 L186,0 A24,24 0 0,0 162,24 Z" fill="#5B2A86" />
+      <path d="M186,24 L210,24 A24,24 0 0,0 186,0 Z" fill="#241238" />
+      <path d="M186,24 L186,48 A24,24 0 0,0 210,24 Z" fill="#2B1B6D" />
+      <path d="M186,24 L162,24 A24,24 0 0,0 186,48 Z" fill="#8A2BE2" />
+    </svg>
+    <h1>ФЕМО есептері</h1>
+  </div>
 
   <div id="login">
     <p>Атыңды таңда:</p>
