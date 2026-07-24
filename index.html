@@ -1928,8 +1928,10 @@
     const wrongTasks = allTasks.filter((t) => {
       const entry = answersObj[t.id];
       if (!entry) return false;
-      const correct = typeof entry === "string" ? undefined : entry.correct;
-      return correct !== true;
+      const legacy = typeof entry === "string";
+      const given = legacy ? entry : entry.given;
+      const liveCorrect = !!(given && normalizeAnswer(given) === normalizeAnswer(t.answer));
+      return !liveCorrect;
     });
     if (wrongTasks.length === 0) return;
 
@@ -1990,13 +1992,37 @@
     const body = document.getElementById("history-body");
     body.innerHTML = "";
     data.forEach((row, i) => {
+      const tourData = TOURS[row.data.tour];
+      const tasks = tourData && tourData.grades[row.data.grade];
+      const taskById = {};
+      if (tasks) tasks.forEach((t) => { taskById[t.id] = t; });
+
+      const answersObj = row.data.answers || {};
+      const qIds = Object.keys(answersObj).sort((a, b) => a - b);
+
+      // Пересчепейміз: сақталған "дұрыс/қате" белгісіне емес, TOURS-тағы
+      // ағымдағы жауап кілтіне сүйенеміз — жауап кейін түзетілген болса,
+      // тарих та автоматты түрде жаңарады.
+      let liveScore = 0;
+      let liveMaxScore = tasks ? tasks.reduce((sum, t) => sum + t.points, 0) : row.data.maxScore;
+      const liveCorrectById = {};
+      qIds.forEach((qId) => {
+        const entry = answersObj[qId];
+        const legacy = typeof entry === "string";
+        const given = legacy ? entry : entry && entry.given;
+        const task = taskById[qId];
+        const liveCorrect = task ? !!(given && normalizeAnswer(given) === normalizeAnswer(task.answer)) : undefined;
+        liveCorrectById[qId] = liveCorrect;
+        if (liveCorrect && task) liveScore += task.points;
+      });
+
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${row.data.student || ""}</td>
         <td>${row.data.tourLabel || ""}</td>
         <td>${row.data.grade || ""}</td>
         <td>${row.data.date}</td>
-        <td>${row.data.score} / ${row.data.maxScore}</td>
+        <td>${liveScore} / ${liveMaxScore}</td>
         <td><button type="button" data-idx="${i}">Толығырақ</button></td>
       `;
       body.appendChild(tr);
@@ -2006,13 +2032,11 @@
       const detailTd = document.createElement("td");
       detailTd.colSpan = 6;
 
-      const answersObj = row.data.answers || {};
-      const qIds = Object.keys(answersObj).sort((a, b) => a - b);
       qIds.forEach((qId) => {
         const entry = answersObj[qId];
         const legacy = typeof entry === "string";
         const given = legacy ? entry : entry && entry.given;
-        const correct = legacy ? undefined : entry && entry.correct;
+        const correct = liveCorrectById[qId];
         const mark = correct === true ? "✓ дұрыс" : correct === false ? "✗ қате" : "— ескі жазба";
         const givenText = given ? ` (жауабы: ${given})` : " (жауап берілмеді)";
 
@@ -2031,10 +2055,7 @@
       });
 
       if (isAdmin) {
-        const hasWrong = Object.values(answersObj).some((entry) => {
-          const correct = typeof entry === "string" ? undefined : entry && entry.correct;
-          return correct === false || correct === undefined;
-        });
+        const hasWrong = qIds.some((qId) => liveCorrectById[qId] !== true);
         if (hasWrong) {
           const reviewBtn = document.createElement("button");
           reviewBtn.type = "button";
