@@ -75,7 +75,7 @@
   </div>
 
   <div id="select" style="display:none;">
-    <p>Сәлем, <b id="greeting"></b>! <span id="logout">(шығу)</span></p>
+    <p>Сәлем, <b id="greeting"></b>!</p>
     <div class="field">
       <label>Сынып</label>
       <select id="grade-select"></select>
@@ -88,7 +88,7 @@
   </div>
 
   <div id="admin" style="display:none;">
-    <p><b>Админ панелі</b> — <span id="logout-admin" style="font-size:13px;color:#888;cursor:pointer;text-decoration:underline;">(шығу)</span></p>
+    <p><b>Админ панелі</b></p>
     <p>Балалардың нәтижелерін төмендегі тарихтан қараңыз. Қате шешілген есептерді қайта, уақыт шектеусіз, баламен бірге шешуге болады.</p>
   </div>
 
@@ -2252,9 +2252,6 @@
     showLogin();
   }
 
-  document.getElementById("logout").onclick = logout;
-  document.getElementById("logout-admin").onclick = logout;
-
   document.getElementById("start-btn").onclick = () => {
     currentGrade = document.getElementById("grade-select").value;
     currentTourKey = document.getElementById("tour-select").value;
@@ -2295,7 +2292,9 @@
           <button id="submit-btn">Жауап беру</button>
           <button id="skip-btn" type="button">Келесі сұраққа өту</button>
           ${reviewMode ? `<button id="reveal-btn" type="button">Жауабы мен шешімін көрсету</button>` : ""}
-          <button id="back-btn" type="button" class="back-btn">← Артқа</button>
+          ${reviewMode || practiceMode
+            ? `<button id="back-btn" type="button" class="back-btn">← Артқа</button>`
+            : `<button id="back-btn" type="button" class="back-btn">Турдан шығу</button>`}
         </div>
         <div id="feedback"></div>
       </div>
@@ -2482,6 +2481,10 @@
   }
 
   function backToMenu() {
+    const isLiveQuiz = !reviewMode && !practiceMode;
+    if (isLiveQuiz && !confirm("Турдан шығасың ба? Жауаптарың сақталмайды.")) {
+      return;
+    }
     clearInterval(timerHandle);
     reviewMode = false;
     practiceMode = false;
