@@ -2501,18 +2501,23 @@
     result.innerHTML = `<div id="final-score">Нәтиже: ${score} / ${maxScore} балл</div>`;
 
     if (missed.length > 0) {
+      const missedTasks = missed.slice();
       const review = document.createElement("div");
-      review.innerHTML = `<h2>Папамен бірге шешетін есептер</h2>`;
-      for (const task of missed) {
+      review.innerHTML = `<h2>Қате шешілген есептер</h2><p class="practice-note">Жауаптары әзірге көрсетілмейді. Уақыт шектеусіз, 3 талпыныспен өз бетінше қайта көруге болады — болмаса, папамен бірге шешерсің.</p>`;
+      for (const task of missedTasks) {
         const div = document.createElement("div");
         div.className = "task";
         div.innerHTML = `
           <p><b>${task.id}.</b> ${task.text} <span class="points">(${task.points} балл)</span></p>
           ${task.image ? `<img class="task-image" src="${task.image}" alt="Есеп суреті">` : ""}
-          <p><i>Дұрыс жауабы (папаға): ${task.answer}</i></p>
         `;
         review.appendChild(div);
       }
+      const practiceBtn = document.createElement("button");
+      practiceBtn.type = "button";
+      practiceBtn.textContent = "Қателерге өзім қайта жұмыс істеп көремін";
+      practiceBtn.onclick = () => practiceMissed(missedTasks);
+      review.appendChild(practiceBtn);
       result.appendChild(review);
     }
 
@@ -2597,6 +2602,19 @@
     reviewMode = true;
     practiceMode = false;
     hideAll();
+    document.getElementById("result").innerHTML = "";
+    renderQuestion();
+  }
+
+  function practiceMissed(tasks) {
+    if (!tasks || tasks.length === 0) return;
+    currentTasks = tasks;
+    currentIndex = 0;
+    score = 0;
+    answers = {};
+    missed = [];
+    reviewMode = false;
+    practiceMode = true;
     document.getElementById("result").innerHTML = "";
     renderQuestion();
   }
