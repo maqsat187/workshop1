@@ -35,6 +35,11 @@
   #logout { font-size: 13px; color: #888; cursor: pointer; text-decoration: underline; }
   #password-gate-error { color: #a3352b; font-size: 14px; }
   #admin { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin: 14px 0; background: #fafafa; }
+  #user-bar { font-size: 13px; color: #555; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid #eee; }
+  #user-bar b { color: #222; }
+  #user-bar-logout { color: #888; cursor: pointer; text-decoration: underline; margin-left: 8px; }
+  .back-btn { background: #eee; color: #444; }
+  .practice-note { color: #6b5300; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -53,6 +58,10 @@
     <h1>ФЕМО есептері</h1>
   </div>
 
+  <div id="user-bar" style="display:none;">
+    Кірген: <b id="user-bar-name"></b><span id="user-bar-logout">(шығу)</span>
+  </div>
+
   <div id="login">
     <p>Атыңды таңда:</p>
     <div id="login-buttons"></div>
@@ -60,6 +69,7 @@
       <p>Құпия сөз (<span id="password-gate-name"></span>):</p>
       <input type="password" id="password-gate-input" placeholder="Пароль" />
       <button id="password-gate-btn">Кіру</button>
+      <button id="password-gate-back" type="button" class="back-btn">← Артқа</button>
       <p id="password-gate-error"></p>
     </div>
   </div>
@@ -2101,6 +2111,18 @@
   let attemptsLeft = MAX_ATTEMPTS;
   let timerHandle = null;
   let reviewMode = false;
+  let practiceMode = false;
+
+  function updateUserBar() {
+    const bar = document.getElementById("user-bar");
+    if (!currentStudent) {
+      bar.style.display = "none";
+      return;
+    }
+    bar.style.display = "block";
+    document.getElementById("user-bar-name").textContent = currentStudent + (isAdmin ? " (админ)" : "");
+  }
+  document.getElementById("user-bar-logout").onclick = logout;
 
   function normalizeAnswer(str) {
     return str
@@ -2137,6 +2159,7 @@
 
   function showLogin() {
     hideAll();
+    updateUserBar();
     document.getElementById("login").style.display = "block";
     document.getElementById("password-gate").style.display = "none";
     document.getElementById("password-gate-error").textContent = "";
@@ -2177,9 +2200,11 @@
   document.getElementById("password-gate-input").addEventListener("keydown", (e) => {
     if (e.key === "Enter") document.getElementById("password-gate-btn").click();
   });
+  document.getElementById("password-gate-back").onclick = showLogin;
 
   function showAdmin() {
     hideAll();
+    updateUserBar();
     document.getElementById("admin").style.display = "block";
     document.getElementById("history").style.display = "block";
     loadHistory();
@@ -2200,6 +2225,7 @@
 
   function showSelect() {
     hideAll();
+    updateUserBar();
     document.getElementById("select").style.display = "block";
     document.getElementById("greeting").textContent = currentStudent;
 
@@ -2238,6 +2264,7 @@
     answers = {};
     missed = [];
     reviewMode = false;
+    practiceMode = false;
     document.getElementById("select").style.display = "none";
     document.getElementById("history").style.display = "none";
     document.getElementById("result").innerHTML = "";
@@ -2253,6 +2280,8 @@
 
     const timerHtml = reviewMode
       ? `<div class="timer">Уақыт шектеусіз (папамен бірге)</div>`
+      : practiceMode
+      ? `<div class="timer">Уақыт шектеусіз (өз бетінше қайталау)</div>`
       : `<div class="timer" id="timer">${formatTime(TIME_LIMIT)}</div>`;
 
     quiz.innerHTML = `
@@ -2266,6 +2295,7 @@
           <button id="submit-btn">Жауап беру</button>
           <button id="skip-btn" type="button">Келесі сұраққа өту</button>
           ${reviewMode ? `<button id="reveal-btn" type="button">Жауабы мен шешімін көрсету</button>` : ""}
+          <button id="back-btn" type="button" class="back-btn">← Артқа</button>
         </div>
         <div id="feedback"></div>
       </div>
@@ -2276,12 +2306,13 @@
       if (e.key === "Enter") checkAnswer(false);
     });
     document.getElementById("skip-btn").onclick = skipQuestion;
+    document.getElementById("back-btn").onclick = backToMenu;
     if (reviewMode) {
       document.getElementById("reveal-btn").onclick = revealSolution;
     }
 
     clearInterval(timerHandle);
-    if (!reviewMode) {
+    if (!reviewMode && !practiceMode) {
       secondsLeft = TIME_LIMIT;
       timerHandle = setInterval(() => {
         secondsLeft--;
@@ -2301,6 +2332,7 @@
     const input = document.getElementById("answer-input");
     const given = timedOut ? "" : input.value.trim();
     const isCorrect = !timedOut && given.length > 0 && normalizeAnswer(given) === normalizeAnswer(task.answer);
+    const isLiveAttempt = !reviewMode && !practiceMode;
 
     if (!isCorrect && !timedOut) {
       attemptsLeft--;
@@ -2314,23 +2346,25 @@
       document.getElementById("submit-btn").disabled = true;
       input.classList.add(isCorrect ? "correct" : "wrong");
 
-      if (!reviewMode) {
+      if (isLiveAttempt) {
         answers[task.id] = { given, correct: isCorrect, attempts: MAX_ATTEMPTS - attemptsLeft + (isCorrect ? 1 : 0) };
       }
 
       const feedback = document.getElementById("feedback");
       feedback.className = "feedback " + (isCorrect ? "correct" : "wrong");
       if (isCorrect) {
-        if (!reviewMode) score += task.points;
+        if (isLiveAttempt) score += task.points;
         feedback.textContent = `Дұрыс! Жауабы: ${task.answer}. Келесі есепке өтейік.`;
       } else {
-        if (!reviewMode) missed.push(task);
+        if (isLiveAttempt) missed.push(task);
         if (reviewMode) {
           feedback.textContent = `Талпыныстар бітті.`;
           const explainDiv = document.createElement("div");
           explainDiv.className = "explain";
           explainDiv.innerHTML = `<b>Толық шешімі:</b> ${task.explain || "Түсіндірме жоқ."} <br><b>Жауабы:</b> ${task.answer}`;
           feedback.appendChild(explainDiv);
+        } else if (practiceMode) {
+          feedback.textContent = `Талпыныстар бітті. Жауабын әзірге ашпаймыз — бұл есепті кейін папамен бірге шешерсің!`;
         } else if (timedOut) {
           feedback.textContent = `Уақыт бітті. Бұл есепті папамен бірге шешейік!`;
         } else {
@@ -2365,7 +2399,7 @@
     const revealBtn = document.getElementById("reveal-btn");
     if (revealBtn) revealBtn.disabled = true;
 
-    if (!reviewMode) {
+    if (!reviewMode && !practiceMode) {
       answers[task.id] = { given, correct: false, attempts: MAX_ATTEMPTS - attemptsLeft };
       missed.push(task);
     }
@@ -2374,6 +2408,8 @@
     feedback.className = "feedback wrong";
     feedback.textContent = reviewMode
       ? "Өткізіп жіберілді."
+      : practiceMode
+      ? "Сұрақ өткізіп жіберілді."
       : "Сұрақ өткізіп жіберілді. Бұл есепті папамен бірге шешейік!";
 
     const nextBtn = document.createElement("button");
@@ -2411,6 +2447,8 @@
       renderQuestion();
     } else if (reviewMode) {
       finishReview();
+    } else if (practiceMode) {
+      finishPractice();
     } else {
       finishQuiz();
     }
@@ -2427,6 +2465,33 @@
       showAdmin();
     };
     result.appendChild(back);
+  }
+
+  function finishPractice() {
+    practiceMode = false;
+    document.getElementById("quiz").style.display = "none";
+    const result = document.getElementById("result");
+    result.innerHTML = `<div>Қайталау аяқталды! Жауаптарыңды папамен бірге тексеріп, шешімдерін бірге қараңдар.</div>`;
+    const back = document.createElement("button");
+    back.textContent = "Артқа оралу";
+    back.onclick = () => {
+      result.innerHTML = "";
+      showSelect();
+    };
+    result.appendChild(back);
+  }
+
+  function backToMenu() {
+    clearInterval(timerHandle);
+    reviewMode = false;
+    practiceMode = false;
+    document.getElementById("quiz").style.display = "none";
+    document.getElementById("result").innerHTML = "";
+    if (isAdmin) {
+      showAdmin();
+    } else {
+      showSelect();
+    }
   }
 
   async function finishQuiz() {
@@ -2479,14 +2544,14 @@
     loadHistory();
   }
 
-  function startReview(row) {
+  function getWrongTasks(row) {
     const tourKey = row.data.tour;
     const grade = row.data.grade;
     const tourData = TOURS[tourKey];
-    if (!tourData || !tourData.grades[grade]) return;
+    if (!tourData || !tourData.grades[grade]) return [];
     const allTasks = tourData.grades[grade];
     const answersObj = row.data.answers || {};
-    const wrongTasks = allTasks.filter((t) => {
+    return allTasks.filter((t) => {
       const entry = answersObj[t.id];
       if (!entry) return false;
       const legacy = typeof entry === "string";
@@ -2494,16 +2559,21 @@
       const liveCorrect = !!(given && normalizeAnswer(given) === normalizeAnswer(t.answer));
       return !liveCorrect;
     });
+  }
+
+  function startReview(row) {
+    const wrongTasks = getWrongTasks(row);
     if (wrongTasks.length === 0) return;
 
-    currentTourKey = tourKey;
-    currentGrade = grade;
+    currentTourKey = row.data.tour;
+    currentGrade = row.data.grade;
     currentTasks = wrongTasks;
     currentIndex = 0;
     score = 0;
     answers = {};
     missed = [];
     reviewMode = true;
+    practiceMode = false;
     hideAll();
     document.getElementById("result").innerHTML = "";
     renderQuestion();
@@ -2525,6 +2595,47 @@
     answers = {};
     missed = [];
     reviewMode = true;
+    practiceMode = false;
+    hideAll();
+    document.getElementById("result").innerHTML = "";
+    renderQuestion();
+  }
+
+  function startPractice(row) {
+    const wrongTasks = getWrongTasks(row);
+    if (wrongTasks.length === 0) return;
+
+    currentTourKey = row.data.tour;
+    currentGrade = row.data.grade;
+    currentTasks = wrongTasks;
+    currentIndex = 0;
+    score = 0;
+    answers = {};
+    missed = [];
+    reviewMode = false;
+    practiceMode = true;
+    hideAll();
+    document.getElementById("result").innerHTML = "";
+    renderQuestion();
+  }
+
+  function startPracticeQuestion(row, qId) {
+    const tourKey = row.data.tour;
+    const grade = row.data.grade;
+    const tourData = TOURS[tourKey];
+    if (!tourData || !tourData.grades[grade]) return;
+    const task = tourData.grades[grade].find((t) => String(t.id) === String(qId));
+    if (!task) return;
+
+    currentTourKey = tourKey;
+    currentGrade = grade;
+    currentTasks = [task];
+    currentIndex = 0;
+    score = 0;
+    answers = {};
+    missed = [];
+    reviewMode = false;
+    practiceMode = true;
     hideAll();
     document.getElementById("result").innerHTML = "";
     renderQuestion();
@@ -2611,12 +2722,19 @@
           soloBtn.style.marginLeft = "8px";
           soloBtn.onclick = () => startReviewQuestion(row, qId);
           qDiv.appendChild(soloBtn);
+        } else if (!isAdmin && correct !== true) {
+          const soloBtn = document.createElement("button");
+          soloBtn.type = "button";
+          soloBtn.textContent = "Өзім қайта шешіп көремін";
+          soloBtn.style.marginLeft = "8px";
+          soloBtn.onclick = () => startPracticeQuestion(row, qId);
+          qDiv.appendChild(soloBtn);
         }
         detailTd.appendChild(qDiv);
       });
 
+      const hasWrong = qIds.some((qId) => liveCorrectById[qId] !== true);
       if (isAdmin) {
-        const hasWrong = qIds.some((qId) => liveCorrectById[qId] !== true);
         if (hasWrong) {
           const reviewBtn = document.createElement("button");
           reviewBtn.type = "button";
@@ -2625,6 +2743,17 @@
           detailTd.appendChild(document.createElement("br"));
           detailTd.appendChild(reviewBtn);
         }
+      } else if (hasWrong) {
+        const practiceBtn = document.createElement("button");
+        practiceBtn.type = "button";
+        practiceBtn.textContent = "Барлық қате есептерімді өзім қайта шешіп көремін";
+        practiceBtn.onclick = () => startPractice(row);
+        detailTd.appendChild(document.createElement("br"));
+        detailTd.appendChild(practiceBtn);
+        const note = document.createElement("p");
+        note.className = "practice-note";
+        note.textContent = "Жауабы көрсетілмейді — уақыт шектеусіз өз бетінше көресің, шешімін кейін папамен бірге қарайсың.";
+        detailTd.appendChild(note);
       }
 
       detailTr.appendChild(detailTd);
